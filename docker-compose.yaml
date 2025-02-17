@@ -47,6 +47,16 @@ services:
     environment:
       - SPARK_MODE=master
 
+  java-service:
+    image: openjdk:21-jdk
+    container_name: java-service
+    volumes:
+      - ./your-java-app:/usr/src/app
+    working_dir: /usr/src/app
+    command: ["java", "-jar", "your-app.jar"]
+    depends_on:
+      - spark-master
+
 volumes:
   pg_data:
   mongo_data:
