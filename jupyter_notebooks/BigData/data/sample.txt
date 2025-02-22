@@ -1,0 +1,4 @@
+Apache Spark is fast
+Spark provides RDDs
+RDDs are fundamental
+Processing big data

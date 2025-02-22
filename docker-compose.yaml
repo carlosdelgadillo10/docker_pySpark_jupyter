@@ -1,62 +1,55 @@
-version: '3.7'
+# docker-compose.yml
+version: '3.8'
 
 services:
-  jupyter:
-    image: jupyter/pyspark-notebook:latest
-    container_name: jupyter
-    ports:
-      - "8888:8888"
-    volumes:
-      - ./jupyter_notebooks:/home/jovyan/work
-    environment:
-      - PYSPARK_PYTHON=python3
-      - PYSPARK_DRIVER_PYTHON=jupyter
-      - PYSPARK_DRIVER_PYTHON_OPTS="lab --ip=0.0.0.0 --port=8888 --NotebookApp.token=''"
-    depends_on:
-      - spark-master
-
-  postgres:
-    image: postgres:13
-    container_name: postgres-db
-    environment:
-      POSTGRES_PASSWORD: bigdata2023
-    ports:
-      - "5432:5432"
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-
-  mongodb:
-    image: mongo:6.0
-    container_name: mongo-db
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-  redis:
-    image: redis:7.0
-    container_name: redis
-    ports:
-      - "6379:6379"
-
   spark-master:
-    image: bitnami/spark:3.4
-    container_name: spark
+    image: apache/spark:3.5.4-scala2.12-java11-python3-ubuntu
     ports:
-      - "8081:8081"
+      - "8080:8080"      # Spark Master UI
+      - "7077:7077"      # Spark Master port
     environment:
       - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    command: "/opt/spark/bin/spark-class org.apache.spark.deploy.master.Master"
+    container_name: spark-master
 
-  java-service:
-    image: openjdk:21-jdk
-    container_name: java-service
-    volumes:
-      - ./your-java-app:/usr/src/app
-    working_dir: /usr/src/app
-    command: ["java", "-jar", "your-app.jar"]
+  spark-worker:
+    image: apache/spark:3.5.4-scala2.12-java11-python3-ubuntu
     depends_on:
       - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    # ports:
+    #   - "8081:8081"      # Worker UI
+    command: "/opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077"
+    deploy:
+      replicas: 5
+    # container_name: spark-worker
 
-volumes:
-  pg_data:
-  mongo_data:
+  jupyter-spark:
+    build: .
+    ports:
+      - "8888:8888"      # Jupyter
+      - "4040-4050:4040-4050"      # Spark UI
+    volumes:
+      - ./workspace:/workspace
+    environment:
+      - JUPYTER_ENABLE_LAB=yes    # Enable JupyterLab
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_DRIVER_MEMORY=1g
+      - SPARK_EXECUTOR_MEMORY=1g
+      - JUPYTER_TOKEN=token-uag
+    depends_on:
+      - spark-master
+      - spark-worker
+    container_name: jupyter-spark
